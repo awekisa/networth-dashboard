@@ -1,0 +1,150 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Provider {
+  id        String   @id @default(cuid())
+  name      String
+  type      String
+  isEnabled Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  accounts  Account[]
+  syncJobs  SyncJob[]
+  auditLogs AuditLog[]
+}
+
+model Account {
+  id               String            @id @default(cuid())
+  providerId       String
+  name             String
+  type             String
+  currency         String
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  provider         Provider          @relation(fields: [providerId], references: [id])
+  holdings         Holding[]
+  balanceSnapshots BalanceSnapshot[]
+  syncJobs         SyncJob[]
+}
+
+model Asset {
+  id             String          @id @default(cuid())
+  name           String
+  symbol         String?
+  assetClass     String
+  currency       String
+  decimals       Int?
+  externalId     String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  holdings       Holding[]
+  priceSnapshots PriceSnapshot[]
+  manualAssets   ManualAsset[]
+
+  @@index([symbol])
+}
+
+model Holding {
+  id            String    @id @default(cuid())
+  accountId     String
+  assetId       String
+  quantity      Decimal
+  unitPrice     Decimal?
+  marketValue   Decimal?
+  costBasis     Decimal?
+  unrealizedPnl Decimal?
+  lastUpdatedAt DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  account       Account   @relation(fields: [accountId], references: [id])
+  asset         Asset     @relation(fields: [assetId], references: [id])
+
+  @@unique([accountId, assetId])
+}
+
+model BalanceSnapshot {
+  id         String   @id @default(cuid())
+  accountId  String
+  currency   String
+  balance    Decimal
+  capturedAt DateTime @default(now())
+  account    Account  @relation(fields: [accountId], references: [id])
+}
+
+model PriceSnapshot {
+  id         String   @id @default(cuid())
+  assetId    String
+  currency   String
+  price      Decimal
+  capturedAt DateTime @default(now())
+  source     String
+  asset      Asset    @relation(fields: [assetId], references: [id])
+}
+
+model PortfolioSnapshot {
+  id                   String   @id @default(cuid())
+  totalNetWorth        Decimal
+  currency             String
+  allocationJson       String
+  currencyExposureJson String
+  capturedAt           DateTime @default(now())
+}
+
+model ManualAsset {
+  id          String   @id @default(cuid())
+  assetId     String?
+  name        String
+  quantity    Decimal
+  unitPrice   Decimal
+  currency    String
+  assetClass  String
+  provider    String   @default("manual")
+  accountName String?
+  costBasis   Decimal?
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  asset       Asset?   @relation(fields: [assetId], references: [id])
+}
+
+model ManualLiability {
+  id          String   @id @default(cuid())
+  name        String
+  amount      Decimal
+  currency    String
+  provider    String   @default("manual")
+  accountName String?
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model SyncJob {
+  id               String    @id @default(cuid())
+  providerId       String?
+  accountId        String?
+  status           String    @default("IDLE")
+  startedAt        DateTime?
+  finishedAt       DateTime?
+  message          String?
+  safeMetadataJson String?
+  provider         Provider? @relation(fields: [providerId], references: [id])
+  account          Account?  @relation(fields: [accountId], references: [id])
+}
+
+model AuditLog {
+  id               String    @id @default(cuid())
+  action           String
+  providerId       String?
+  subjectType      String?
+  subjectId        String?
+  safeMetadataJson String?
+  createdAt        DateTime  @default(now())
+  provider         Provider? @relation(fields: [providerId], references: [id])
+}
