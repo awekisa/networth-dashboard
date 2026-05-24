@@ -95,7 +95,7 @@ button:hover, .secondary-button:hover, .sync-pill:hover, .ghost:hover { border-c
   font-weight: 850;
   color: #7b7f88;
 }
-.hero-metric { font-size: clamp(52px, 5.2vw, 72px); font-weight: 850; line-height: .92; margin: 4px 0 16px; letter-spacing: -.07em; white-space: nowrap; }
+.hero-metric { font-size: clamp(36px, 3.4vw, 52px); font-weight: 850; line-height: .92; margin: 4px 0 16px; letter-spacing: -.07em; white-space: nowrap; }
 .change-line { display: flex; align-items: center; gap: 7px; font-size: 16px; flex-wrap: wrap; }
 .positive { color: var(--green)!important; }
 .negative { color: var(--red)!important; }
@@ -225,12 +225,13 @@ form { display: grid; gap: 10px; min-width: 0; }
 }
 
 @media (max-width: 1100px) {
-  .hero-grid, .secondary-grid { grid-template-columns: 1fr; }
+  .secondary-grid { grid-template-columns: 1fr; }
   .topbar { grid-template-columns: 1fr auto; }
   .topbar nav { grid-column: 1 / -1; order: 3; justify-content: flex-start; }
 }
 
 @media (max-width: 900px) {
+  .hero-grid { grid-template-columns: 1fr; }
   .filters-panel { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .topbar { align-items: start; }
   .modal-backdrop:target { align-items: flex-start; }

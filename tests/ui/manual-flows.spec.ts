@@ -45,7 +45,8 @@ test('dashboard applies the Modern Fintech visual design tokens', async ({ page 
   expect(tokens.topbar.background).toBe('rgba(0, 0, 0, 0)');
   expect(tokens.topbar.boxShadow).toBe('none');
   expect(tokens.heroGrid.gridTemplateColumns.split(' ').length).toBe(3);
-  expect(parseFloat(tokens.heroMetric.fontSize)).toBeGreaterThanOrEqual(52);
+  expect(parseFloat(tokens.heroMetric.fontSize)).toBeGreaterThanOrEqual(40);
+  expect(parseFloat(tokens.heroMetric.fontSize)).toBeLessThanOrEqual(52);
   expect(tokens.panel.background).toBe('rgba(0, 0, 0, 0)');
   expect(tokens.panel.boxShadow).toBe('none');
   expect(tokens.holdingsCard.background).toBe('rgb(255, 255, 255)');
@@ -98,6 +99,29 @@ test('integrations modal follows the Modern Fintech popup design', async ({ page
   await expect(modal.getByRole('button', { name: /sync ibkr flex now/i })).toBeVisible();
   await modal.getByRole('link', { name: /close integrations/i }).click();
   await expect(page).not.toHaveURL(/#integrations$/);
+});
+
+test('desktop dashboard does not look browser-zoomed at 1024px wide', async ({ page }) => {
+  await page.setViewportSize({ width: 1024, height: 768 });
+  await page.goto('/');
+
+  const layout = await page.evaluate(() => {
+    const hero = document.querySelector('.hero-grid');
+    const metric = document.querySelector('.hero-metric');
+    const holdings = document.querySelector('#holdings');
+    if (!hero || !metric || !holdings) throw new Error('Missing dashboard landmarks');
+    return {
+      heroColumns: getComputedStyle(hero).gridTemplateColumns.split(' ').length,
+      metricFontSize: parseFloat(getComputedStyle(metric).fontSize),
+      holdingsTop: holdings.getBoundingClientRect().top,
+      overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    };
+  });
+
+  expect(layout.heroColumns).toBe(3);
+  expect(layout.metricFontSize).toBeLessThanOrEqual(44);
+  expect(layout.holdingsTop).toBeLessThan(410);
+  expect(layout.overflow).toBeLessThanOrEqual(1);
 });
 
 test('dashboard and integrations modal fit within common screen sizes', async ({ page }) => {
