@@ -92,7 +92,7 @@ test('integrations modal follows the Modern Fintech popup design', async ({ page
   await expect(modal).toContainText('CONNECTED');
   await expect(modal).toContainText('ADD NEW');
   await expect(modal).toContainText('Interactive Brokers');
-  await expect(modal).toContainText('Ethereum address');
+  await expect(modal).toContainText('Crypto addresses');
   await expect(modal.getByRole('heading', { name: /add manual account/i })).toBeVisible();
   await expect(modal.getByRole('heading', { name: /add manual asset/i })).toBeVisible();
   await expect(modal.getByRole('heading', { name: /recent audit log/i })).toBeVisible();
@@ -106,12 +106,42 @@ test('crypto address setup exposes supported networks and env configuration guid
   await page.getByRole('link', { name: /connect integration/i }).click();
   const modal = page.locator('#integrations');
 
-  await expect(modal.getByText('Bitcoin address')).toBeVisible();
-  await expect(modal.getByText('Ethereum address')).toBeVisible();
-  await expect(modal.getByText('Solana address')).toBeVisible();
-  await expect(modal.getByText('Sui address')).toBeVisible();
+  await expect(modal.getByRole('link', { name: /Crypto addresses/i })).toBeVisible();
+  await expect(modal.getByText(/BTC · ETH · SOL · SUI/)).toBeVisible();
+  await expect(modal.getByLabel('Crypto network')).toContainText('Bitcoin');
+  await expect(modal.getByLabel('Crypto network')).toContainText('Ethereum');
+  await expect(modal.getByLabel('Crypto network')).toContainText('Solana');
+  await expect(modal.getByLabel('Crypto network')).toContainText('Sui');
   await expect(modal.getByText(/CRYPTO_PUBLIC_ADDRESSES/).first()).toBeVisible();
   await expect(modal.getByText(/Configured crypto addresses/)).toBeVisible();
+});
+
+test('integrations popup keeps add-new sources visible at laptop height', async ({ page }) => {
+  await page.setViewportSize({ width: 1024, height: 768 });
+  await page.goto('/');
+  await page.getByRole('link', { name: /connect integration/i }).click();
+
+  const fit = await page.evaluate(() => {
+    const modal = document.querySelector('.integrations-modal');
+    const content = document.querySelector('.modal-content');
+    const addNew = document.querySelector('.add-new-section');
+    const providerGrid = document.querySelector('.provider-grid');
+    if (!modal || !content || !addNew || !providerGrid) throw new Error('Missing modal layout elements');
+    const modalBox = modal.getBoundingClientRect();
+    const contentBox = content.getBoundingClientRect();
+    const providerBox = providerGrid.getBoundingClientRect();
+    return {
+      modalBottom: modalBox.bottom,
+      contentBottom: contentBox.bottom,
+      providerBottom: providerBox.bottom,
+      modalHeight: modalBox.height,
+      horizontalOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    };
+  });
+
+  expect(fit.modalHeight).toBeLessThanOrEqual(744);
+  expect(fit.providerBottom).toBeLessThanOrEqual(fit.contentBottom + 1);
+  expect(fit.horizontalOverflow).toBeLessThanOrEqual(1);
 });
 
 test('desktop dashboard does not look browser-zoomed at 1024px wide', async ({ page }) => {
