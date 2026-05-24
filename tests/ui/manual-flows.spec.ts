@@ -116,6 +116,18 @@ test('crypto address setup exposes supported networks and env configuration guid
   await expect(modal.getByText(/Configured crypto addresses/)).toBeVisible();
 });
 
+test('crypto addresses card keeps the integrations popup open and jumps to local setup', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('link', { name: /connect integration/i }).click();
+
+  await page.locator('#integrations').getByRole('link', { name: /Crypto addresses/i }).click();
+
+  const modal = page.locator('#integrations');
+  await expect(modal).toBeVisible();
+  await expect(page).toHaveURL(/#manual-entry$/);
+  await expect(modal.getByRole('heading', { name: /configured crypto addresses/i })).toBeVisible();
+});
+
 test('integrations popup keeps add-new sources visible at laptop height', async ({ page }) => {
   await page.setViewportSize({ width: 1024, height: 768 });
   await page.goto('/');

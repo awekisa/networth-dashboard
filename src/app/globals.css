@@ -182,7 +182,8 @@ form { display: grid; gap: 10px; min-width: 0; }
   padding: clamp(8px, 3vw, 28px);
   overflow: auto;
 }
-.modal-backdrop:target { display: flex; align-items: center; justify-content: center; }
+.modal-backdrop:target, .modal-backdrop:has(:target) { display: flex; align-items: center; justify-content: center; }
+#manual-entry { scroll-margin-top: 16px; }
 .integrations-modal {
   width: min(980px, calc(100vw - 2 * clamp(8px, 3vw, 28px)));
   max-height: calc(100dvh - 2 * clamp(8px, 3vw, 28px));
