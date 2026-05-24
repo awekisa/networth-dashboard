@@ -54,6 +54,39 @@ test('dashboard applies the Modern Fintech visual design tokens', async ({ page 
   expect(tokens.modalBackdrop.display).toBe('none');
 });
 
+test('dashboard keeps a usable above-the-fold shell if the dev CSS chunk is stale or blocked', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 820 });
+  await page.route('**/_next/static/chunks/src_app_globals*.css', route => route.abort());
+  await page.goto('/');
+
+  const fallback = await page.evaluate(() => {
+    const app = document.querySelector('.app-shell');
+    const topbar = document.querySelector('.topbar');
+    const hero = document.querySelector('.hero-grid');
+    const chart = document.querySelector('.trend-chart');
+    if (!app || !topbar || !hero || !chart) throw new Error('Missing critical dashboard elements');
+    return {
+      bodyBg: getComputedStyle(document.body).backgroundColor,
+      bodyColor: getComputedStyle(document.body).color,
+      appPaddingTop: parseFloat(getComputedStyle(app).paddingTop),
+      topbarDisplay: getComputedStyle(topbar).display,
+      heroColumns: getComputedStyle(hero).gridTemplateColumns.split(' ').length,
+      chartWidth: chart.getBoundingClientRect().width,
+      chartHeight: chart.getBoundingClientRect().height,
+      holdingsTop: document.querySelector('#holdings')?.getBoundingClientRect().top ?? 9999,
+    };
+  });
+
+  expect(fallback.bodyBg).toBe('rgb(255, 255, 255)');
+  expect(fallback.bodyColor).toBe('rgb(17, 24, 39)');
+  expect(fallback.appPaddingTop).toBeGreaterThanOrEqual(14);
+  expect(fallback.topbarDisplay).toBe('grid');
+  expect(fallback.heroColumns).toBe(3);
+  expect(fallback.chartWidth).toBeLessThan(520);
+  expect(fallback.chartHeight).toBeLessThanOrEqual(190);
+  expect(fallback.holdingsTop).toBeLessThan(430);
+});
+
 test('dashboard uses only the Modern Fintech shell and safe integration entry points', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByText('Nworth')).toBeVisible();
