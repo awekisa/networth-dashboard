@@ -4,6 +4,8 @@ import { loadPortfolioAggregation } from '@/lib/portfolio/db-aggregation';
 
 function money(value: number, currency = 'EUR') { return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(value); }
 function pct(current: number, previous?: number) { if (!previous) return 'n/a'; return `${(((current - previous) / Math.abs(previous)) * 100).toFixed(2)}%`; }
+function quantity(value: number) { return new Intl.NumberFormat('en-US', { maximumFractionDigits: 8 }).format(value); }
+function maybeMoney(value: number | undefined, currency: string) { return value === undefined ? 'n/a' : money(value, currency); }
 
 export default async function Home() {
   await ensureDefaultProviders();
@@ -30,7 +32,7 @@ export default async function Home() {
       <div className="card"><h3>24h / 7d / 30d change</h3><div className="metric">{pct(aggregation.totalNetWorth, previous)}</div><p className="muted">Snapshot-based; more history improves this.</p></div>
       <div className="card"><h3>Asset allocation</h3>{allocation.length ? allocation.map(([k,v]) => <p key={k}>{k}: {money(v)}</p>) : <p className="muted">No assets yet</p>}</div>
       <div className="card"><h3>Currency exposure</h3>{exposure.length ? exposure.map(([k,v]) => <p key={k}>{k}: {money(v)}</p>) : <p className="muted">No exposure yet</p>}</div>
-      <div className="card"><h3>Top holdings</h3>{aggregation.topHoldings.map(h => <p key={`${h.account}-${h.name}`}>{h.name}: {h.quantity} {h.symbol ?? ''}</p>)}</div>
+      <div className="card"><h3>Top holdings</h3>{aggregation.topHoldings.length ? aggregation.topHoldings.map(h => <div className="holding-summary" data-testid={h.assetId ? `top-holding-${h.assetId}` : undefined} key={`${h.account}-${h.name}`}><strong>{h.name}</strong><span>{h.provider} · {h.account} · {h.assetClass}</span><span>Qty: {quantity(h.quantity)} {h.symbol ?? ''}</span><span>Unit: {maybeMoney(h.unitPrice, h.currency)} · Value: {maybeMoney(h.marketValue, h.currency)}</span><span>Cost: {maybeMoney(h.costBasis, h.currency)} · P&amp;L: {maybeMoney(h.unrealizedPnl, h.currency)}</span></div>) : <p className="muted">No holdings yet</p>}</div>
       <div className="card"><h3>Account breakdown</h3>{accounts.length ? accounts.map(a => <p key={a.id}>{a.name} · {a.provider.name}</p>) : <p className="muted">Add a manual, bank, broker, Fidelity, or crypto account below.</p>}</div>
     </section>
 

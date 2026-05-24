@@ -13,6 +13,7 @@ export type NormalizedHolding = {
   costBasis?: number;
   unrealizedPnl?: number;
   lastUpdatedAt?: string;
+  assetId?: string;
 };
 
 export type ManualAssetInput = {
