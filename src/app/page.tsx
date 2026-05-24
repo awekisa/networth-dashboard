@@ -1,11 +1,14 @@
 import { addManualAccount, addManualAsset, addManualCash, addManualLiability, createSnapshotAction, ensureDefaultProviders, syncIbkrFlex } from './actions';
 import { prisma } from '@/lib/db';
 import { loadPortfolioAggregation } from '@/lib/portfolio/db-aggregation';
+import type { NormalizedHolding } from '@/lib/portfolio/types';
 
 function money(value: number, currency = 'EUR') { return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(value); }
 function pct(current: number, previous?: number) { if (!previous) return 'n/a'; return `${(((current - previous) / Math.abs(previous)) * 100).toFixed(2)}%`; }
 function quantity(value: number) { return new Intl.NumberFormat('en-US', { maximumFractionDigits: 8 }).format(value); }
 function maybeMoney(value: number | undefined, currency: string) { return value === undefined ? 'n/a' : money(value, currency); }
+function rowValue(holding: NormalizedHolding) { return holding.marketValue ?? holding.quantity * (holding.unitPrice ?? 0); }
+function positive(value?: number) { return value === undefined ? '' : value >= 0 ? 'positive' : 'negative'; }
 
 export default async function Home() {
   await ensureDefaultProviders();
@@ -19,55 +22,109 @@ export default async function Home() {
     prisma.auditLog.findMany({ orderBy: { createdAt: 'desc' }, take: 8 })
   ]);
   const previous = snapshots[1] ? Number(snapshots[1].totalNetWorth) : undefined;
+  const dailyChange = previous === undefined ? 0 : aggregation.totalNetWorth - previous;
   const allocation = Object.entries(aggregation.allocationByAssetClass);
   const exposure = Object.entries(aggregation.allocationByCurrency);
   const accountOptions = accounts.length ? accounts : [];
-  return <main className="container">
-    <section className="hero">
-      <div><p className="badge">Local-first • SQLite • public crypto addresses only</p><h1>Local Net Worth Dashboard</h1><p className="muted">Private MVP for manual assets, liabilities, cash balances and Ethereum public-address tracking. Never enter private keys, seed phrases, or signing keys.</p></div>
-      <form action={createSnapshotAction}><button>Refresh data / create snapshot</button></form>
-    </section>
-    <section className="grid" aria-label="Main dashboard cards">
-      <div className="card"><h3>Total net worth</h3><div className="metric">{money(aggregation.totalNetWorth)}</div><p className="muted">Assets {money(aggregation.totalAssetsValue)} − liabilities {money(aggregation.liabilitiesValue)}</p></div>
-      <div className="card"><h3>24h / 7d / 30d change</h3><div className="metric">{pct(aggregation.totalNetWorth, previous)}</div><p className="muted">Snapshot-based; more history improves this.</p></div>
-      <div className="card"><h3>Asset allocation</h3>{allocation.length ? allocation.map(([k,v]) => <p key={k}>{k}: {money(v)}</p>) : <p className="muted">No assets yet</p>}</div>
-      <div className="card"><h3>Currency exposure</h3>{exposure.length ? exposure.map(([k,v]) => <p key={k}>{k}: {money(v)}</p>) : <p className="muted">No exposure yet</p>}</div>
-      <div className="card"><h3>Top holdings</h3>{aggregation.topHoldings.length ? aggregation.topHoldings.map(h => <div className="holding-summary" data-testid={h.assetId ? `top-holding-${h.assetId}` : undefined} key={`${h.account}-${h.name}`}><strong>{h.name}</strong><span>{h.provider} · {h.account} · {h.assetClass}</span><span>Qty: {quantity(h.quantity)} {h.symbol ?? ''}</span><span>Unit: {maybeMoney(h.unitPrice, h.currency)} · Value: {maybeMoney(h.marketValue, h.currency)}</span><span>Cost: {maybeMoney(h.costBasis, h.currency)} · P&amp;L: {maybeMoney(h.unrealizedPnl, h.currency)}</span></div>) : <p className="muted">No holdings yet</p>}</div>
-      <div className="card"><h3>Account breakdown</h3>{accounts.length ? accounts.map(a => <p key={a.id}>{a.name} · {a.provider.name}</p>) : <p className="muted">Add a manual, bank, broker, Fidelity, or crypto account below.</p>}</div>
-    </section>
+  const holdingsCount = aggregation.holdings.length;
+  const connectedSources = accounts.length;
+  const syncedAt = audits.find(a => a.action === 'SYNC_SUCCESS')?.createdAt;
+  const syncLabel = connectedSources ? `${connectedSources} integrations · synced ${syncedAt ? syncedAt.toISOString().slice(11, 16) : 'locally'}` : 'Local sources · add integrations';
+  const topHoldings = aggregation.topHoldings;
+  const holdingsByClass = aggregation.holdings.reduce<Record<string, NormalizedHolding[]>>((acc, holding) => {
+    (acc[holding.assetClass] ??= []).push(holding);
+    return acc;
+  }, {});
 
-    <h2>Connect accounts</h2>
-    <section className="forms">
-      <div className="card ok"><h3>Add manual account</h3><form action={addManualAccount}>
-        <label>Provider<select aria-label="Provider" name="providerId" defaultValue="manual-provider">{providers.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
-        <label>Account name<input name="name" placeholder="Account name" required/></label>
-        <label>Account type<input aria-label="Account type" name="type" placeholder="cash, broker, wallet, pension" defaultValue="cash" required/></label>
-        <label>Base currency<input aria-label="Base currency" name="currency" placeholder="EUR" defaultValue="EUR" required/></label>
-        <button>Add manual account</button>
-      </form><p className="muted">Use this for banks, brokers, pensions, Fidelity, IBKR, cash envelopes, or anything not connected yet.</p></div>
-      <div className="card warning"><h3>Add Ethereum public address</h3><form action="/api/crypto-address" method="post"><input name="address" placeholder="0x public address only" required/><button>Add Ethereum public address</button></form><p className="muted">Public addresses only. This is enough for ETH and public ERC-20 balances when an Etherscan key is configured. Never enter private keys, seed phrases, or signing keys.</p></div>
-      <div className="card"><h3>Interactive Brokers</h3><p className="muted">MVP status: read-only Flex Web Service sync. Add IBKR_FLEX_TOKEN and IBKR_FLEX_QUERY_ID to local .env, restart the dev server, then sync. Uses read-only reports only. No trading, no order placement, no automation.</p><form action={syncIbkrFlex}><button>Sync IBKR Flex now</button></form></div>
-      <div className="card"><h3>Fidelity</h3><p className="muted">MVP status: safe placeholder. Fidelity is best handled as CSV export or manual entry unless an official read-only integration is explicitly available. No credential scraping, no trading, no order placement.</p></div>
-      <div className="card"><h3>Bank accounts</h3><p className="muted">MVP status: manual balances. Add each bank as a manual account, then add cash balances. Future bank integrations must be opt-in, documented, and read-only.</p></div>
-    </section>
+  return <>
+    <main className="app-shell">
+      <header className="topbar">
+        <div className="brand"><span className="brand-mark">N</span><span>Nworth</span></div>
+        <nav aria-label="Primary navigation"><a className="active" href="#portfolio">Portfolio</a><a href="#holdings">Holdings</a><a href="#integrations">Integrations</a><a href="#manual-entry">Manual entry</a><a href="#audit-log">Audit</a></nav>
+        <div className="topbar-actions"><a className="sync-pill" href="#integrations"><span className="status-dot" />{syncLabel}</a><button className="ghost" type="button">Privacy mode</button><span className="avatar">DV</span></div>
+      </header>
 
-    <h2>Manual entry</h2>
-    <section className="forms">
-      <div className="card"><h3>Add manual asset</h3><form action={addManualAsset}>
-        <select aria-label="Asset account" name="accountId"><option value="">No account / free text below</option>{accountOptions.map(a => <option key={a.id} value={a.id}>{a.name} · {a.provider.name}</option>)}</select>
-        <input name="accountName" placeholder="Account name if not listed"/><input name="name" placeholder="Name" required/><select name="assetClass" defaultValue="FUND"><option>CASH</option><option>CRYPTO</option><option>EQUITY</option><option>FUND</option><option>BOND</option><option>REAL_ESTATE</option><option>COMMODITY</option><option>OTHER</option></select><input name="currency" placeholder="Currency" defaultValue="EUR" required/><input name="quantity" type="number" step="any" placeholder="Quantity" required/><input name="unitPrice" type="number" step="any" placeholder="Unit price" required/><button>Add manual asset</button></form></div>
-      <div className="card"><h3>Add manual liability</h3><form action={addManualLiability}>
-        <select aria-label="Liability account" name="accountId"><option value="">No account / free text below</option>{accountOptions.map(a => <option key={a.id} value={a.id}>{a.name} · {a.provider.name}</option>)}</select>
-        <input name="accountName" placeholder="Account name if not listed"/><input name="name" placeholder="Name" required/><input name="currency" placeholder="Currency" defaultValue="EUR" required/><input name="amount" type="number" step="any" placeholder="Amount" required/><button>Add manual liability</button></form></div>
-      <div className="card"><h3>Add manual cash/bank balance</h3><form action={addManualCash}>
-        <select aria-label="Cash account" name="accountId"><option value="">No account / free text below</option>{accountOptions.map(a => <option key={a.id} value={a.id}>{a.name} · {a.provider.name}</option>)}</select>
-        <input name="accountName" placeholder="Account name if not listed"/><input name="name" placeholder="Cash / bank balance name" required/><input name="currency" placeholder="Currency" defaultValue="EUR" required/><input name="unitPrice" type="number" step="any" placeholder="Balance" required/><button>Add manual cash balance</button></form></div>
-    </section>
+      <section id="portfolio" className="dashboard-grid hero-grid">
+        <article className="panel net-worth-panel">
+          <h2 className="eyebrow">Net worth</h2>
+          <div className="hero-metric">{money(aggregation.totalNetWorth)}</div>
+          <div className={`change-line ${dailyChange >= 0 ? 'positive' : 'negative'}`}><span>{dailyChange >= 0 ? '▲' : '▼'}</span><strong>{money(Math.abs(dailyChange))}</strong><span>({pct(aggregation.totalNetWorth, previous)})</span><span className="muted">Today</span></div>
+          <div className="mini-metrics"><span>30d <strong>{pct(aggregation.totalNetWorth, previous)}</strong></span><span>Assets <strong>{money(aggregation.totalAssetsValue)}</strong></span><span>Liabilities <strong>{money(aggregation.liabilitiesValue)}</strong></span></div>
+          <form action={createSnapshotAction}><button className="primary">Refresh data / create snapshot</button></form>
+        </article>
 
-    <h2>Charts</h2><section className="grid"><div className="card"><h3>Net worth over time</h3>{snapshots.slice().reverse().map(s => <p key={s.id}>{s.capturedAt.toISOString().slice(0,10)} · {money(Number(s.totalNetWorth), s.currency)}</p>)}</div><div className="card"><h3>Asset allocation pie/donut</h3>{allocation.map(([k,v]) => <p key={k}>● {k}: {money(v)}</p>)}</div><div className="card"><h3>Currency exposure</h3>{exposure.map(([k,v]) => <p key={k}>● {k}: {money(v)}</p>)}</div><div className="card"><h3>Holdings performance</h3><p className="muted">Shown when cost basis/price history is available.</p></div></section>
-    <h2>Tables</h2><section className="card table-wrap"><h3>Holdings table</h3><table><thead><tr><th>Name</th><th>Ticker</th><th>Provider</th><th>Account</th><th>Asset class</th><th>Currency</th><th>Quantity</th><th>Unit price</th><th>Market value</th><th>Cost basis</th><th>Unrealized P&L</th><th>Last updated</th></tr></thead><tbody>{aggregation.holdings.map(h => <tr key={`${h.provider}-${h.account}-${h.name}`}><td>{h.name}</td><td>{h.symbol}</td><td>{h.provider}</td><td>{h.account}</td><td>{h.assetClass}</td><td>{h.currency}</td><td>{h.quantity}</td><td>{h.unitPrice ?? ''}</td><td>{h.marketValue ?? ''}</td><td>{h.costBasis ?? ''}</td><td>{h.unrealizedPnl ?? ''}</td><td>{h.lastUpdatedAt ?? ''}</td></tr>)}</tbody></table></section>
-    <section className="grid"><div className="card"><h3>Accounts table</h3>{accounts.map(a => <p key={a.id}>{a.name} · {a.type} · {a.currency} · {a.provider.name}</p>)}</div><div className="card"><h3>Manual assets table</h3>{manualAssets.map(a => <p key={a.id}>{a.name}: {String(a.quantity)} × {String(a.unitPrice)} {a.currency} · {a.accountName ?? 'No account'}</p>)}</div><div className="card"><h3>Manual liabilities table</h3>{manualLiabilities.map(l => <p key={l.id}>{l.name}: {String(l.amount)} {l.currency} · {l.accountName ?? 'No account'}</p>)}</div><div className="card"><h3>Portfolio snapshots table</h3>{snapshots.map(s => <p key={s.id}>{s.capturedAt.toISOString()} · {money(Number(s.totalNetWorth), s.currency)}</p>)}</div></section>
-    <h2>Filters</h2><section className="card"><p className="muted">Filter dimensions supported in the normalized model: account, asset class, currency, provider. UI controls are intentionally minimal in MVP and can be wired to query params next.</p></section>
-    <h2>Audit log</h2><section className="card ok">{audits.map(a => <p key={a.id}>{a.createdAt.toISOString()} · {a.action} · {a.safeMetadataJson}</p>)}</section>
-  </main>;
+        <article className="panel chart-panel">
+          <div className="panel-title"><h2>30-day trend</h2><div className="range-tabs"><span>1w</span><span className="selected">1m</span><span>3m</span><span>1y</span><span>All</span></div></div>
+          <svg className="trend-chart" viewBox="0 0 420 180" role="img" aria-label="Net worth trend chart">
+            <defs><linearGradient id="trendFill" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stopColor="#2563eb" stopOpacity="0.24"/><stop offset="100%" stopColor="#2563eb" stopOpacity="0.02"/></linearGradient></defs>
+            <path d="M12 140 C70 122 92 132 136 105 S220 82 260 92 S338 48 408 58" fill="none" stroke="#2563eb" strokeWidth="4" strokeLinecap="round"/>
+            <path d="M12 140 C70 122 92 132 136 105 S220 82 260 92 S338 48 408 58 L408 168 L12 168 Z" fill="url(#trendFill)"/>
+          </svg>
+          <div className="axis"><span>{snapshots.at(-1)?.capturedAt.toISOString().slice(5,10) ?? 'Start'}</span><span>{snapshots[0]?.capturedAt.toISOString().slice(5,10) ?? 'Today'}</span></div>
+        </article>
+
+        <article className="panel allocation-panel">
+          <h2 className="eyebrow">Allocation</h2>
+          <div className="allocation-wrap"><div className="donut" /> <div className="legend">{allocation.length ? allocation.map(([k,v], i) => <p key={k}><span className={`legend-dot c${i % 6}`} />{k}<strong>{aggregation.totalAssetsValue ? ((v / aggregation.totalAssetsValue) * 100).toFixed(1) : '0.0'}%</strong></p>) : <p className="muted">No assets yet</p>}</div></div>
+        </article>
+      </section>
+
+      <section className="filters-panel panel" aria-label="Portfolio filters">
+        <p className="security-note">Local-first, public addresses only. Read-only integrations only: No trading, no order placement, no automation.</p>
+        <label>Account<select aria-label="Filter by account"><option>All accounts</option>{accounts.map(a => <option key={a.id}>{a.name}</option>)}</select></label>
+        <label>Asset class<select aria-label="Filter by asset class"><option>All asset classes</option>{allocation.map(([k]) => <option key={k}>{k}</option>)}</select></label>
+        <label>Currency<select aria-label="Filter by currency"><option>All currencies</option>{exposure.map(([k]) => <option key={k}>{k}</option>)}</select></label>
+        <label>Provider<select aria-label="Filter by provider"><option>All providers</option>{providers.map(p => <option key={p.id}>{p.name}</option>)}</select></label>
+      </section>
+
+      <section className="dashboard-grid secondary-grid">
+        <article className="panel card"><h2>Top holdings</h2>{topHoldings.length ? topHoldings.map(h => <div className="holding-summary" data-testid={h.assetId ? `top-holding-${h.assetId}` : undefined} key={`${h.account}-${h.name}`}><strong>{h.name}</strong><span>{h.provider} · {h.account} · {h.assetClass}</span><span>Qty: {quantity(h.quantity)} {h.symbol ?? ''}</span><span>Unit: {maybeMoney(h.unitPrice, h.currency)} · Value: {maybeMoney(h.marketValue, h.currency)}</span><span>Cost: {maybeMoney(h.costBasis, h.currency)} · <span className={positive(h.unrealizedPnl)}>P&amp;L: {maybeMoney(h.unrealizedPnl, h.currency)}</span></span></div>) : <p className="muted">No holdings yet</p>}</article>
+        <article className="panel"><h2>Currency exposure</h2>{exposure.length ? exposure.map(([k,v]) => <div className="exposure-row" key={k}><span>{k}</span><strong>{money(v)}</strong></div>) : <p className="muted">No exposure yet</p>}</article>
+        <article className="panel"><h2>Account breakdown</h2>{accounts.length ? accounts.map(a => <p className="account-line" key={a.id}>{a.name}<span>{a.type} · {a.currency} · {a.provider.name}</span></p>) : <p className="muted">Add a manual, bank, broker, Fidelity, or crypto account below.</p>}</article>
+      </section>
+
+      <section id="holdings" className="holdings-section">
+        <div className="section-heading"><div><h2>Holdings</h2><p>{holdingsCount} assets across {connectedSources || 1} local sources</p></div><div className="button-row"><a href="#manual-entry" className="secondary-button">+ Add asset</a><a href="#integrations" className="secondary-button">Connect integration</a></div></div>
+        <div className="holdings-card">
+          {Object.entries(holdingsByClass).length ? Object.entries(holdingsByClass).map(([assetClass, rows], index) => <details open={index < 2} key={assetClass} className="asset-group">
+            <summary><span><i className={`legend-dot c${index % 6}`} />{assetClass}<small>{rows.length}</small></span><strong>{money(rows.reduce((sum, h) => sum + rowValue(h), 0), rows[0]?.currency ?? 'EUR')}</strong></summary>
+            <div className="table-wrap"><table><thead><tr><th>Symbol</th><th>Name</th><th>Shares</th><th>Price</th><th>Value</th><th>Total return</th><th>Account</th></tr></thead><tbody>{rows.map(h => <tr key={`${h.provider}-${h.account}-${h.name}`}><td><strong>{h.symbol ?? '—'}</strong></td><td>{h.name}</td><td>{quantity(h.quantity)}</td><td>{h.unitPrice === undefined ? '—' : money(h.unitPrice, h.currency)}</td><td>{h.marketValue === undefined ? '—' : money(h.marketValue, h.currency)}</td><td className={positive(h.unrealizedPnl)}>{h.unrealizedPnl === undefined ? '—' : money(h.unrealizedPnl, h.currency)}</td><td><span className="account-chip">{h.account}</span></td></tr>)}</tbody></table></div>
+          </details>) : <p className="empty-state">No holdings yet. Add a manual asset or connect a read-only integration.</p>}
+        </div>
+      </section>
+
+      <section id="manual-entry" className="manual-grid">
+        <article className="panel card"><h2>Add manual account</h2><form action={addManualAccount}>
+          <label>Provider<select aria-label="Provider" name="providerId" defaultValue="manual-provider">{providers.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
+          <label>Account name<input name="name" placeholder="Account name" required/></label>
+          <label>Account type<input aria-label="Account type" name="type" placeholder="cash, broker, wallet, pension" defaultValue="cash" required/></label>
+          <label>Base currency<input aria-label="Base currency" name="currency" placeholder="EUR" defaultValue="EUR" required/></label>
+          <button>Add manual account</button>
+        </form><p className="muted">Use this for banks, brokers, pensions, Fidelity, IBKR, cash envelopes, or anything not connected yet.</p></article>
+        <article className="panel card warning"><h2>Add Ethereum public address</h2><form action="/api/crypto-address" method="post"><input name="address" placeholder="0x public address only" required/><button>Add Ethereum public address</button></form><p className="muted">Public addresses only. ETH/ERC-20 reads are read-only. Never enter private keys, seed phrases, or signing keys.</p></article>
+        <article className="panel card"><h2>Add manual asset</h2><form action={addManualAsset}>
+          <select aria-label="Asset account" name="accountId"><option value="">No account / free text below</option>{accountOptions.map(a => <option key={a.id} value={a.id}>{a.name} · {a.provider.name}</option>)}</select>
+          <input name="accountName" placeholder="Account name if not listed"/><input name="name" placeholder="Name" required/><select name="assetClass" defaultValue="FUND"><option>CASH</option><option>CRYPTO</option><option>EQUITY</option><option>FUND</option><option>BOND</option><option>REAL_ESTATE</option><option>COMMODITY</option><option>OTHER</option></select><input name="currency" placeholder="Currency" defaultValue="EUR" required/><input name="quantity" type="number" step="any" placeholder="Quantity" required/><input name="unitPrice" type="number" step="any" placeholder="Unit price" required/><button>Add manual asset</button></form></article>
+        <article className="panel card"><h2>Add manual liability</h2><form action={addManualLiability}>
+          <select aria-label="Liability account" name="accountId"><option value="">No account / free text below</option>{accountOptions.map(a => <option key={a.id} value={a.id}>{a.name} · {a.provider.name}</option>)}</select>
+          <input name="accountName" placeholder="Account name if not listed"/><input name="name" placeholder="Name" required/><input name="currency" placeholder="Currency" defaultValue="EUR" required/><input name="amount" type="number" step="any" placeholder="Amount" required/><button>Add manual liability</button></form></article>
+        <article className="panel card"><h2>Add manual cash/bank balance</h2><form action={addManualCash}>
+          <select aria-label="Cash account" name="accountId"><option value="">No account / free text below</option>{accountOptions.map(a => <option key={a.id} value={a.id}>{a.name} · {a.provider.name}</option>)}</select>
+          <input name="accountName" placeholder="Account name if not listed"/><input name="name" placeholder="Cash / bank balance name" required/><input name="currency" placeholder="Currency" defaultValue="EUR" required/><input name="unitPrice" type="number" step="any" placeholder="Balance" required/><button>Add manual cash balance</button></form></article>
+      </section>
+
+      <section className="dashboard-grid tables-grid"><article className="panel"><h2>Manual assets table</h2>{manualAssets.map(a => <p key={a.id}>{a.name}: {String(a.quantity)} × {String(a.unitPrice)} {a.currency} · {a.accountName ?? 'No account'}</p>)}</article><article className="panel"><h2>Manual liabilities table</h2>{manualLiabilities.map(l => <p key={l.id}>{l.name}: {String(l.amount)} {l.currency} · {l.accountName ?? 'No account'}</p>)}</article><article className="panel"><h2>Portfolio snapshots table</h2>{snapshots.map(s => <p key={s.id}>{s.capturedAt.toISOString()} · {money(Number(s.totalNetWorth), s.currency)}</p>)}</article></section>
+      <section id="audit-log" className="panel audit-panel"><h2>Audit log</h2>{audits.map(a => <p key={a.id}>{a.createdAt.toISOString()} · {a.action} · {a.safeMetadataJson}</p>)}</section>
+    </main>
+
+    <aside id="integrations" className="modal-backdrop" aria-label="Integrations modal">
+      <div className="integrations-modal">
+        <header className="modal-header"><div><h2>Integrations</h2><p>{connectedSources} connected · next manual sync when you choose</p></div><a href="#" className="close-button" aria-label="Close integrations">×</a></header>
+        <div className="modal-body"><nav className="modal-sidebar" aria-label="Integration categories"><a className="selected" href="#integrations">◯ <span>All sources</span><strong>22</strong></a><a href="#integrations">▤ <span>Brokerages</span><strong>5</strong></a><a href="#integrations">◆ <span>Crypto</span><strong>6</strong></a><a href="#integrations">▭ <span>Banks & cash</span><strong>4</strong></a><a href="#integrations">⌂ <span>Real estate</span><strong>3</strong></a><a href="#integrations">✎ <span>Manual entry</span><strong>2</strong></a><div className="status-box"><p>Status</p><span><i className="status-dot"/> {Math.max(connectedSources, 1)} syncing</span><span><i className="status-dot warning-dot"/> 0 needs re-auth</span></div></nav>
+          <div className="modal-content"><section><div className="modal-section-title"><p>CONNECTED</p><span>{connectedSources} sources · {money(aggregation.totalAssetsValue)} tracked</span></div><div className="integration-list"><div className="integration-row"><span className="provider-icon ib">IB</span><div><strong>Interactive Brokers</strong><small><b>FLEX</b> Read-only Flex Web Service · No trading, no order placement, no automation.</small></div><span className="healthy">synced</span><span>{money(aggregation.holdings.filter(h => h.provider === 'Interactive Brokers').reduce((sum, h) => sum + rowValue(h), 0))}</span><form action={syncIbkrFlex}><button>Sync IBKR Flex now</button></form></div>{accounts.filter(a => a.providerId !== 'ibkr-provider').map(a => <div className="integration-row" key={a.id}><span className="provider-icon">{a.provider.name.slice(0,2).toUpperCase()}</span><div><strong>{a.provider.name}</strong><small><b>LOCAL</b> {a.name}</small></div><span className="healthy">local</span><span>{a.currency}</span><button type="button">Sync</button></div>)}</div></section>
+            <section><div className="modal-section-title"><p>ADD NEW</p><span>22 sources</span><input aria-label="Search providers" placeholder="Search providers…" /></div><div className="provider-grid"><a href="#manual-entry" className="provider-card"><span className="provider-icon">M</span><strong>Manual account</strong><small>MANUAL · cash, assets, liabilities</small></a><a href="#manual-entry" className="provider-card"><span className="provider-icon eth">EA</span><strong>Ethereum address</strong><small>WALLET ADDR · public 0x tracking only</small></a><a href="#integrations" className="provider-card"><span className="provider-icon ib">IB</span><strong>Interactive Brokers</strong><small>FLEX · positions and cash balances</small></a><a href="#manual-entry" className="provider-card"><span className="provider-icon">B</span><strong>Bank / cash</strong><small>MANUAL · local-first MVP</small></a></div></section></div>
+        </div>
+      </div>
+    </aside>
+  </>;
 }

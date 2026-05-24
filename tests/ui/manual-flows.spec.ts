@@ -7,20 +7,40 @@ test.afterAll(async () => {
   await prisma.$disconnect();
 });
 
-test('dashboard exposes account onboarding and safe integration choices', async ({ page }) => {
+test('dashboard uses the Modern Fintech shell with filters and safe integration entry points', async ({ page }) => {
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: /local net worth dashboard/i })).toBeVisible();
-  await expect(page.getByRole('heading', { name: /connect accounts/i })).toBeVisible();
-  await expect(page.getByRole('heading', { name: /add manual account/i })).toBeVisible();
-  await expect(page.getByRole('heading', { name: /add ethereum public address/i })).toBeVisible();
+  await expect(page.getByText('Nworth')).toBeVisible();
+  await expect(page.getByRole('navigation')).toContainText('Portfolio');
+  await expect(page.getByRole('navigation')).toContainText('Holdings');
+  await expect(page.getByRole('navigation')).toContainText('Integrations');
+  await expect(page.getByRole('heading', { name: /net worth/i })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /30-day trend/i })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /allocation/i })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Holdings', exact: true })).toBeVisible();
+  await expect(page.getByLabel('Filter by account')).toBeVisible();
+  await expect(page.getByLabel('Filter by asset class')).toBeVisible();
+  await expect(page.getByLabel('Filter by currency')).toBeVisible();
+  await expect(page.getByLabel('Filter by provider')).toBeVisible();
   await expect(page.getByText(/public addresses only/i).first()).toBeVisible();
-  const ibkrCard = page.locator('.card').filter({ has: page.getByRole('heading', { name: /interactive brokers/i }) });
-  await expect(ibkrCard).toContainText(/read-only Flex Web Service sync/i);
-  await expect(ibkrCard).toContainText(/No trading, no order placement/i);
-  await expect(ibkrCard.getByRole('button', { name: /sync ibkr flex now/i })).toBeVisible();
-  const fidelityCard = page.locator('.card').filter({ has: page.getByRole('heading', { name: /fidelity/i }) });
-  await expect(fidelityCard).toContainText(/CSV export or manual entry/i);
-  await expect(fidelityCard).toContainText(/No credential scraping/i);
+  await expect(page.getByText(/No trading, no order placement/i).first()).toBeVisible();
+});
+
+test('integrations modal follows the Modern Fintech popup design', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('link', { name: /connect integration/i }).click();
+  const modal = page.locator('#integrations');
+  await expect(modal.getByRole('heading', { name: /integrations/i })).toBeVisible();
+  await expect(modal).toContainText('All sources');
+  await expect(modal).toContainText('Brokerages');
+  await expect(modal).toContainText('Crypto');
+  await expect(modal).toContainText('Banks & cash');
+  await expect(modal).toContainText('CONNECTED');
+  await expect(modal).toContainText('ADD NEW');
+  await expect(modal).toContainText('Interactive Brokers');
+  await expect(modal).toContainText('Ethereum address');
+  await expect(modal.getByRole('button', { name: /sync ibkr flex now/i })).toBeVisible();
+  await modal.getByRole('link', { name: /close integrations/i }).click();
+  await expect(page).not.toHaveURL(/#integrations$/);
 });
 
 test('can create a manual account and then use it for a cash balance', async ({ page }) => {
@@ -33,7 +53,7 @@ test('can create a manual account and then use it for a cash balance', async ({ 
     await accountCard.getByLabel('Account type').fill('cash');
     await accountCard.getByLabel('Base currency').fill('EUR');
     await accountCard.getByRole('button', { name: /add manual account/i }).click();
-    await expect(page.getByText(new RegExp(accountName)).first()).toBeVisible();
+    await expect(page.locator('.account-line').filter({ hasText: accountName })).toBeVisible();
     await expect(page.getByLabel('Cash account')).toContainText(accountName);
   } finally {
     await prisma.account.deleteMany({ where: { name: accountName } });
