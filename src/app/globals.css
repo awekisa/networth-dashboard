@@ -206,6 +206,15 @@ form { display: grid; gap: 10px; min-width: 0; }
 .status-box p { margin: 0; text-transform: uppercase; letter-spacing: .1em; font-size: 11px; color: #8b8f98; font-weight: 850; }
 .status-box span { font-size: 13px; color: #4b5563; }
 .modal-content { padding: 16px; overflow: auto; min-height: 0; display: grid; align-content: start; gap: 16px; }
+.modal-management, .modal-content > .tables-grid, .modal-content > .audit-panel { display: none; }
+.modal-backdrop:has(#manual-entry:target) .modal-management,
+.modal-backdrop:has(#manual-entry:target) .modal-content > .tables-grid,
+.modal-backdrop:has(#manual-entry:target) .modal-content > .audit-panel { display: block; }
+.crypto-env-summary { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px 12px; margin-top: 10px; padding: 12px; border: 1px solid var(--line); border-radius: 18px; background: #fff; }
+.crypto-env-summary h2 { margin: 0; font-size: 15px; }
+.crypto-env-summary p { margin: 3px 0 0; color: var(--muted); }
+.crypto-chip-row { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; }
+.crypto-env-summary > .secondary-button { grid-column: 2; grid-row: 1; white-space: nowrap; }
 .integration-list { border: 1px solid var(--line); border-radius: 20px; overflow: hidden; background: #fff; }
 .connected-section .integration-list { max-height: clamp(190px, 30vh, 240px); overflow: auto; }
 .integration-row { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto auto auto; gap: 12px; align-items: center; padding: 14px; border-top: 1px solid var(--line); }

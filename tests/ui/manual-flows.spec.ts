@@ -85,6 +85,27 @@ test('dashboard keeps a usable above-the-fold shell if the dev CSS chunk is stal
   expect(fallback.chartWidth).toBeLessThan(520);
   expect(fallback.chartHeight).toBeLessThanOrEqual(190);
   expect(fallback.holdingsTop).toBeLessThan(430);
+
+  await page.getByRole('link', { name: /connect integration/i }).click();
+  const modalFallback = await page.evaluate(() => {
+    const modal = document.querySelector('.integrations-modal');
+    const content = document.querySelector('.modal-content');
+    const management = document.querySelector('#manual-entry');
+    const cryptoSummary = document.querySelector('.crypto-env-summary');
+    if (!modal || !content || !management || !cryptoSummary) throw new Error('Missing modal fallback elements');
+    const modalBox = modal.getBoundingClientRect();
+    const contentBox = content.getBoundingClientRect();
+    return {
+      modalBottom: modalBox.bottom,
+      contentBottom: contentBox.bottom,
+      managementDisplay: getComputedStyle(management).display,
+      cryptoSummaryVisible: cryptoSummary.getBoundingClientRect().height > 0,
+    };
+  });
+  expect(modalFallback.modalBottom).toBeLessThanOrEqual(820);
+  expect(modalFallback.contentBottom).toBeLessThanOrEqual(modalFallback.modalBottom + 1);
+  expect(modalFallback.managementDisplay).toBe('none');
+  expect(modalFallback.cryptoSummaryVisible).toBe(true);
 });
 
 test('dashboard uses only the Modern Fintech shell and safe integration entry points', async ({ page }) => {
@@ -126,9 +147,11 @@ test('integrations modal follows the Modern Fintech popup design', async ({ page
   await expect(modal).toContainText('ADD NEW');
   await expect(modal).toContainText('Interactive Brokers');
   await expect(modal).toContainText('Crypto addresses');
-  await expect(modal.getByRole('heading', { name: /add manual account/i })).toBeVisible();
-  await expect(modal.getByRole('heading', { name: /add manual asset/i })).toBeVisible();
-  await expect(modal.getByRole('heading', { name: /recent audit log/i })).toBeVisible();
+  await expect(modal.getByRole('heading', { name: /configured crypto addresses/i })).toBeVisible();
+  await expect(modal.locator('.crypto-env-summary')).toContainText(/configured from local|No local/i);
+  await expect(modal.getByRole('heading', { name: /add manual account/i })).toBeHidden();
+  await expect(modal.getByRole('heading', { name: /add manual asset/i })).toBeHidden();
+  await expect(modal.getByRole('heading', { name: /recent audit log/i })).toBeHidden();
   await expect(modal.getByRole('button', { name: /sync ibkr flex now/i })).toBeVisible();
   await modal.getByRole('link', { name: /close integrations/i }).click();
   await expect(page).not.toHaveURL(/#integrations$/);
@@ -141,12 +164,14 @@ test('crypto address setup exposes supported networks and env configuration guid
 
   await expect(modal.getByRole('link', { name: /Crypto addresses/i })).toBeVisible();
   await expect(modal.getByText(/BTC · ETH · SOL · SUI/)).toBeVisible();
+  await expect(modal.locator('.crypto-env-summary')).toContainText(/configured from local|No local/i);
+  await modal.getByRole('link', { name: /Crypto addresses/i }).click();
   await expect(modal.getByLabel('Crypto network')).toContainText('Bitcoin');
   await expect(modal.getByLabel('Crypto network')).toContainText('Ethereum');
   await expect(modal.getByLabel('Crypto network')).toContainText('Solana');
   await expect(modal.getByLabel('Crypto network')).toContainText('Sui');
   await expect(modal.getByText(/CRYPTO_PUBLIC_ADDRESSES/).first()).toBeVisible();
-  await expect(modal.getByText(/Configured crypto addresses/)).toBeVisible();
+  await expect(modal.locator('#manual-entry').getByRole('heading', { name: /Configured crypto addresses/ })).toBeVisible();
 });
 
 test('crypto addresses card keeps the integrations popup open and jumps to local setup', async ({ page }) => {
@@ -158,7 +183,7 @@ test('crypto addresses card keeps the integrations popup open and jumps to local
   const modal = page.locator('#integrations');
   await expect(modal).toBeVisible();
   await expect(page).toHaveURL(/#manual-entry$/);
-  await expect(modal.getByRole('heading', { name: /configured crypto addresses/i })).toBeVisible();
+  await expect(modal.locator('#manual-entry').getByRole('heading', { name: /configured crypto addresses/i })).toBeVisible();
 });
 
 test('integrations popup keeps add-new sources visible at laptop height', async ({ page }) => {
@@ -265,6 +290,7 @@ test('can create a manual account and then use it for a cash balance', async ({ 
   const modal = page.locator('#integrations');
   const accountName = `Playwright Cash ${Date.now()}`;
   try {
+    await modal.getByRole('link', { name: /Manual account/i }).click();
     const accountCard = modal.locator('.card').filter({ has: page.getByRole('heading', { name: /add manual account/i }) });
     await accountCard.getByRole('textbox', { name: 'Account name', exact: true }).fill(accountName);
     await accountCard.getByLabel('Provider').selectOption('manual-provider');
