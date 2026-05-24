@@ -156,6 +156,28 @@ test('integrations popup keeps add-new sources visible at laptop height', async 
   expect(fit.horizontalOverflow).toBeLessThanOrEqual(1);
 });
 
+test('dashboard does not show framework dev overlay controls over the app UI', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.getByRole('button', { name: /open next\.js dev tools/i })).toHaveCount(0);
+});
+
+test('allocation donut uses the same visible asset-class slices as the legend', async ({ page }) => {
+  const suffix = Date.now();
+  const assetName = `Playwright Single Allocation ${suffix}`;
+  await prisma.manualAsset.create({ data: { name: assetName, assetClass: 'EQUITY', currency: 'EUR', quantity: 1, unitPrice: 100, provider: 'manual' } });
+
+  try {
+    await page.goto('/');
+    await expect(page.locator('.legend')).toContainText('EQUITY');
+    const donut = page.locator('.donut');
+    const background = await donut.evaluate(element => getComputedStyle(element).backgroundImage || getComputedStyle(element).background);
+    const colorMatches = new Set(background.match(/rgb\([^)]*\)|#[0-9a-fA-F]{3,8}/g) ?? []);
+    expect(colorMatches.size, `single-class allocation should not render unrelated donut slices: ${background}`).toBe(1);
+  } finally {
+    await prisma.manualAsset.deleteMany({ where: { name: assetName } });
+  }
+});
+
 test('desktop dashboard does not look browser-zoomed at 1024px wide', async ({ page }) => {
   await page.setViewportSize({ width: 1024, height: 768 });
   await page.goto('/');

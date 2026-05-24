@@ -10,6 +10,18 @@ function quantity(value: number) { return new Intl.NumberFormat('en-US', { maxim
 function maybeMoney(value: number | undefined, currency: string) { return value === undefined ? 'n/a' : money(value, currency); }
 function rowValue(holding: NormalizedHolding) { return holding.marketValue ?? holding.quantity * (holding.unitPrice ?? 0); }
 function positive(value?: number) { return value === undefined ? '' : value >= 0 ? 'positive' : 'negative'; }
+function allocationDonutBackground(allocation: [string, number][], totalAssetsValue: number) {
+  const colors = ['#2563eb', '#16a34a', '#f97316', '#64748b', '#7c3aed', '#d1d5db'];
+  if (!allocation.length || totalAssetsValue <= 0) return 'conic-gradient(#e5e7eb 0% 100%)';
+  if (allocation.length === 1) return `conic-gradient(${colors[0]} 0% 100%)`;
+  let cursor = 0;
+  const stops = allocation.map(([, value], index) => {
+    const start = cursor;
+    cursor += (value / totalAssetsValue) * 100;
+    return `${colors[index % colors.length]} ${start.toFixed(2)}% ${Math.min(cursor, 100).toFixed(2)}%`;
+  });
+  return `conic-gradient(${stops.join(', ')})`;
+}
 
 export default async function Home() {
   await ensureDefaultProviders();
@@ -67,7 +79,7 @@ export default async function Home() {
 
         <article className="panel allocation-panel">
           <h2 className="eyebrow">Allocation</h2>
-          <div className="allocation-wrap"><div className="donut" /> <div className="legend">{allocation.length ? allocation.map(([k,v], i) => <p key={k}><span className={`legend-dot c${i % 6}`} />{k}<strong>{aggregation.totalAssetsValue ? ((v / aggregation.totalAssetsValue) * 100).toFixed(1) : '0.0'}%</strong></p>) : <p className="muted">No assets yet</p>}</div></div>
+          <div className="allocation-wrap"><div className="donut" style={{ background: allocationDonutBackground(allocation, aggregation.totalAssetsValue) }} /> <div className="legend">{allocation.length ? allocation.map(([k,v], i) => <p key={k}><span className={`legend-dot c${i % 6}`} />{k}<strong>{aggregation.totalAssetsValue ? ((v / aggregation.totalAssetsValue) * 100).toFixed(1) : '0.0'}%</strong></p>) : <p className="muted">No assets yet</p>}</div></div>
         </article>
       </section>
 
