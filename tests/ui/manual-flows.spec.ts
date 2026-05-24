@@ -8,8 +8,9 @@ test('dashboard exposes account onboarding and safe integration choices', async 
   await expect(page.getByRole('heading', { name: /add ethereum public address/i })).toBeVisible();
   await expect(page.getByText(/public addresses only/i).first()).toBeVisible();
   const ibkrCard = page.locator('.card').filter({ has: page.getByRole('heading', { name: /interactive brokers/i }) });
-  await expect(ibkrCard).toContainText(/read-only imports only/i);
+  await expect(ibkrCard).toContainText(/read-only Flex Web Service sync/i);
   await expect(ibkrCard).toContainText(/No trading, no order placement/i);
+  await expect(ibkrCard.getByRole('button', { name: /sync ibkr flex now/i })).toBeVisible();
   const fidelityCard = page.locator('.card').filter({ has: page.getByRole('heading', { name: /fidelity/i }) });
   await expect(fidelityCard).toContainText(/CSV export or manual entry/i);
   await expect(fidelityCard).toContainText(/No credential scraping/i);

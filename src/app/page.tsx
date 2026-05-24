@@ -1,4 +1,4 @@
-import { addManualAccount, addManualAsset, addManualCash, addManualLiability, createSnapshotAction, ensureDefaultProviders } from './actions';
+import { addManualAccount, addManualAsset, addManualCash, addManualLiability, createSnapshotAction, ensureDefaultProviders, syncIbkrFlex } from './actions';
 import { prisma } from '@/lib/db';
 import { loadPortfolioAggregation } from '@/lib/portfolio/db-aggregation';
 
@@ -44,7 +44,7 @@ export default async function Home() {
         <button>Add manual account</button>
       </form><p className="muted">Use this for banks, brokers, pensions, Fidelity, IBKR, cash envelopes, or anything not connected yet.</p></div>
       <div className="card warning"><h3>Add Ethereum public address</h3><form action="/api/crypto-address" method="post"><input name="address" placeholder="0x public address only" required/><button>Add Ethereum public address</button></form><p className="muted">Public addresses only. This is enough for ETH and public ERC-20 balances when an Etherscan key is configured. Never enter private keys, seed phrases, or signing keys.</p></div>
-      <div className="card"><h3>Interactive Brokers</h3><p className="muted">MVP status: safe placeholder. Add an IBKR manual account now, then enter positions manually. Future integration should use read-only imports only: Activity/Flex reports, CSV export, or a read-only local adapter. No trading, no order placement, no automation.</p></div>
+      <div className="card"><h3>Interactive Brokers</h3><p className="muted">MVP status: read-only Flex Web Service sync. Add IBKR_FLEX_TOKEN and IBKR_FLEX_QUERY_ID to local .env, restart the dev server, then sync. Uses read-only reports only. No trading, no order placement, no automation.</p><form action={syncIbkrFlex}><button>Sync IBKR Flex now</button></form></div>
       <div className="card"><h3>Fidelity</h3><p className="muted">MVP status: safe placeholder. Fidelity is best handled as CSV export or manual entry unless an official read-only integration is explicitly available. No credential scraping, no trading, no order placement.</p></div>
       <div className="card"><h3>Bank accounts</h3><p className="muted">MVP status: manual balances. Add each bank as a manual account, then add cash balances. Future bank integrations must be opt-in, documented, and read-only.</p></div>
     </section>
