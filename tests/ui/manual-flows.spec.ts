@@ -7,6 +7,52 @@ test.afterAll(async () => {
   await prisma.$disconnect();
 });
 
+test('dashboard applies the Modern Fintech visual design tokens', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 820 });
+  await page.goto('/');
+
+  const tokens = await page.evaluate(() => {
+    const styles = (selector: string) => {
+      const element = document.querySelector(selector);
+      if (!element) throw new Error(`Missing ${selector}`);
+      const computed = getComputedStyle(element);
+      const rect = element.getBoundingClientRect();
+      return {
+        background: computed.backgroundColor,
+        borderColor: computed.borderColor,
+        borderRadius: computed.borderRadius,
+        boxShadow: computed.boxShadow,
+        display: computed.display,
+        fontSize: computed.fontSize,
+        fontWeight: computed.fontWeight,
+        gridTemplateColumns: computed.gridTemplateColumns,
+        height: rect.height,
+      };
+    };
+
+    return {
+      body: getComputedStyle(document.body).backgroundColor,
+      topbar: styles('.topbar'),
+      heroGrid: styles('.hero-grid'),
+      heroMetric: styles('.hero-metric'),
+      panel: styles('.panel'),
+      holdingsCard: styles('.holdings-card'),
+      modalBackdrop: styles('.modal-backdrop'),
+    };
+  });
+
+  expect(tokens.body).toBe('rgb(255, 255, 255)');
+  expect(tokens.topbar.background).toBe('rgba(0, 0, 0, 0)');
+  expect(tokens.topbar.boxShadow).toBe('none');
+  expect(tokens.heroGrid.gridTemplateColumns.split(' ').length).toBe(3);
+  expect(parseFloat(tokens.heroMetric.fontSize)).toBeGreaterThanOrEqual(52);
+  expect(tokens.panel.background).toBe('rgba(0, 0, 0, 0)');
+  expect(tokens.panel.boxShadow).toBe('none');
+  expect(tokens.holdingsCard.background).toBe('rgb(255, 255, 255)');
+  expect(parseFloat(tokens.holdingsCard.borderRadius)).toBeGreaterThanOrEqual(24);
+  expect(tokens.modalBackdrop.display).toBe('none');
+});
+
 test('dashboard uses the Modern Fintech shell with filters and safe integration entry points', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByText('Nworth')).toBeVisible();
