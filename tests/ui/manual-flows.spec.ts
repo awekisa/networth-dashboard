@@ -13,6 +13,8 @@ test('dashboard uses the Modern Fintech shell with filters and safe integration 
   await expect(page.getByRole('navigation')).toContainText('Portfolio');
   await expect(page.getByRole('navigation')).toContainText('Holdings');
   await expect(page.getByRole('navigation')).toContainText('Integrations');
+  await expect(page.getByRole('navigation')).not.toContainText('Manual entry');
+  await expect(page.getByRole('navigation')).not.toContainText('Audit');
   await expect(page.getByRole('heading', { name: /net worth/i })).toBeVisible();
   await expect(page.getByRole('heading', { name: /30-day trend/i })).toBeVisible();
   await expect(page.getByRole('heading', { name: /allocation/i })).toBeVisible();
@@ -23,6 +25,9 @@ test('dashboard uses the Modern Fintech shell with filters and safe integration 
   await expect(page.getByLabel('Filter by provider')).toBeVisible();
   await expect(page.getByText(/public addresses only/i).first()).toBeVisible();
   await expect(page.getByText(/No trading, no order placement/i).first()).toBeVisible();
+  await expect(page.getByRole('heading', { name: /add manual account/i })).toBeHidden();
+  await expect(page.getByRole('heading', { name: /add manual asset/i })).toBeHidden();
+  await expect(page.getByRole('heading', { name: /recent audit log/i })).toBeHidden();
 });
 
 test('integrations modal follows the Modern Fintech popup design', async ({ page }) => {
@@ -38,6 +43,9 @@ test('integrations modal follows the Modern Fintech popup design', async ({ page
   await expect(modal).toContainText('ADD NEW');
   await expect(modal).toContainText('Interactive Brokers');
   await expect(modal).toContainText('Ethereum address');
+  await expect(modal.getByRole('heading', { name: /add manual account/i })).toBeVisible();
+  await expect(modal.getByRole('heading', { name: /add manual asset/i })).toBeVisible();
+  await expect(modal.getByRole('heading', { name: /recent audit log/i })).toBeVisible();
   await expect(modal.getByRole('button', { name: /sync ibkr flex now/i })).toBeVisible();
   await modal.getByRole('link', { name: /close integrations/i }).click();
   await expect(page).not.toHaveURL(/#integrations$/);
@@ -70,16 +78,20 @@ test('dashboard and integrations modal fit within common screen sizes', async ({
 
 test('can create a manual account and then use it for a cash balance', async ({ page }) => {
   await page.goto('/');
+  await page.getByRole('link', { name: /connect integration/i }).click();
+  const modal = page.locator('#integrations');
   const accountName = `Playwright Cash ${Date.now()}`;
   try {
-    const accountCard = page.locator('.card').filter({ has: page.getByRole('heading', { name: /add manual account/i }) });
+    const accountCard = modal.locator('.card').filter({ has: page.getByRole('heading', { name: /add manual account/i }) });
     await accountCard.getByRole('textbox', { name: 'Account name', exact: true }).fill(accountName);
     await accountCard.getByLabel('Provider').selectOption('manual-provider');
     await accountCard.getByLabel('Account type').fill('cash');
     await accountCard.getByLabel('Base currency').fill('EUR');
     await accountCard.getByRole('button', { name: /add manual account/i }).click();
-    await expect(page.locator('.account-line').filter({ hasText: accountName })).toBeVisible();
-    await expect(page.getByLabel('Cash account')).toContainText(accountName);
+    await page.getByRole('link', { name: /connect integration/i }).click();
+    const refreshedModal = page.locator('#integrations');
+    await expect(refreshedModal.locator('.integration-row').filter({ hasText: accountName })).toBeVisible();
+    await expect(refreshedModal.getByLabel('Cash account')).toContainText(accountName);
   } finally {
     await prisma.account.deleteMany({ where: { name: accountName } });
   }
