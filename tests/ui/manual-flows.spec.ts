@@ -43,6 +43,31 @@ test('integrations modal follows the Modern Fintech popup design', async ({ page
   await expect(page).not.toHaveURL(/#integrations$/);
 });
 
+test('dashboard and integrations modal fit within common screen sizes', async ({ page }) => {
+  for (const viewport of [
+    { width: 1024, height: 768 },
+    { width: 768, height: 1024 },
+    { width: 390, height: 844 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await page.goto('/');
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    expect(overflow, `${viewport.width}px dashboard should not horizontally overflow`).toBeLessThanOrEqual(1);
+
+    await page.getByRole('link', { name: /connect integration/i }).click();
+    const modalBounds = await page.locator('.integrations-modal').boundingBox();
+    expect(modalBounds, 'modal should be visible').not.toBeNull();
+    expect(modalBounds!.x).toBeGreaterThanOrEqual(0);
+    expect(modalBounds!.y).toBeGreaterThanOrEqual(0);
+    expect(modalBounds!.x + modalBounds!.width, `${viewport.width}px modal should fit horizontally`).toBeLessThanOrEqual(viewport.width + 1);
+    expect(modalBounds!.y + modalBounds!.height, `${viewport.width}px modal should fit vertically`).toBeLessThanOrEqual(viewport.height + 1);
+
+    const modalOverflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    expect(modalOverflow, `${viewport.width}px modal should not horizontally overflow`).toBeLessThanOrEqual(1);
+    await page.locator('#integrations').getByRole('link', { name: /close integrations/i }).click();
+  }
+});
+
 test('can create a manual account and then use it for a cash balance', async ({ page }) => {
   await page.goto('/');
   const accountName = `Playwright Cash ${Date.now()}`;
