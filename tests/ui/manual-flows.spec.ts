@@ -101,6 +101,19 @@ test('integrations modal follows the Modern Fintech popup design', async ({ page
   await expect(page).not.toHaveURL(/#integrations$/);
 });
 
+test('crypto address setup exposes supported networks and env configuration guidance', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('link', { name: /connect integration/i }).click();
+  const modal = page.locator('#integrations');
+
+  await expect(modal.getByText('Bitcoin address')).toBeVisible();
+  await expect(modal.getByText('Ethereum address')).toBeVisible();
+  await expect(modal.getByText('Solana address')).toBeVisible();
+  await expect(modal.getByText('Sui address')).toBeVisible();
+  await expect(modal.getByText(/CRYPTO_PUBLIC_ADDRESSES/).first()).toBeVisible();
+  await expect(modal.getByText(/Configured crypto addresses/)).toBeVisible();
+});
+
 test('desktop dashboard does not look browser-zoomed at 1024px wide', async ({ page }) => {
   await page.setViewportSize({ width: 1024, height: 768 });
   await page.goto('/');
