@@ -53,7 +53,7 @@ test('dashboard applies the Modern Fintech visual design tokens', async ({ page 
   expect(tokens.modalBackdrop.display).toBe('none');
 });
 
-test('dashboard uses the Modern Fintech shell with filters and safe integration entry points', async ({ page }) => {
+test('dashboard uses only the Modern Fintech shell and safe integration entry points', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByText('Nworth')).toBeVisible();
   await expect(page.getByRole('navigation')).toContainText('Portfolio');
@@ -65,12 +65,15 @@ test('dashboard uses the Modern Fintech shell with filters and safe integration 
   await expect(page.getByRole('heading', { name: /30-day trend/i })).toBeVisible();
   await expect(page.getByRole('heading', { name: /allocation/i })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Holdings', exact: true })).toBeVisible();
-  await expect(page.getByLabel('Filter by account')).toBeVisible();
-  await expect(page.getByLabel('Filter by asset class')).toBeVisible();
-  await expect(page.getByLabel('Filter by currency')).toBeVisible();
-  await expect(page.getByLabel('Filter by provider')).toBeVisible();
-  await expect(page.getByText(/public addresses only/i).first()).toBeVisible();
-  await expect(page.getByText(/No trading, no order placement/i).first()).toBeVisible();
+  await expect(page.getByRole('heading', { name: /top holdings/i })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: /currency exposure/i })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: /account breakdown/i })).toHaveCount(0);
+  await expect(page.locator('.filters-panel')).toHaveCount(0);
+  await expect(page.getByText(/local-first, public addresses only/i)).toHaveCount(0);
+  await expect(page.getByLabel('Filter by account')).toHaveCount(0);
+  await expect(page.getByLabel('Filter by asset class')).toHaveCount(0);
+  await expect(page.getByLabel('Filter by currency')).toHaveCount(0);
+  await expect(page.getByLabel('Filter by provider')).toHaveCount(0);
   await expect(page.getByRole('heading', { name: /add manual account/i })).toBeHidden();
   await expect(page.getByRole('heading', { name: /add manual asset/i })).toBeHidden();
   await expect(page.getByRole('heading', { name: /recent audit log/i })).toBeHidden();
@@ -143,7 +146,7 @@ test('can create a manual account and then use it for a cash balance', async ({ 
   }
 });
 
-test('top holdings show IBKR position details beyond name and quantity', async ({ page }) => {
+test('holdings table shows IBKR position details without old summary widgets', async ({ page }) => {
   const suffix = Date.now();
   const providerId = `playwright-ibkr-provider-${suffix}`;
   const accountId = `playwright-ibkr-account-${suffix}`;
@@ -156,15 +159,18 @@ test('top holdings show IBKR position details beyond name and quantity', async (
 
   try {
     await page.goto('/');
-    const topHoldingsCard = page.locator('.card').filter({ has: page.getByRole('heading', { name: /top holdings/i }) });
-    const position = topHoldingsCard.locator(`[data-testid="top-holding-${assetId}"]`);
-    await expect(position).toContainText(`Playwright Detailed Position ${suffix}`);
-    await expect(position).toContainText('Qty: 7 PWT');
-    await expect(position).toContainText('Unit: €123.45');
-    await expect(position).toContainText('Value: €864.15');
-    await expect(position).toContainText('Cost: €700.00');
-    await expect(position).toContainText('P&L: €164.15');
-    await expect(position).toContainText(`IBKR Test ${suffix}`);
+    await expect(page.getByRole('heading', { name: /top holdings/i })).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: /currency exposure/i })).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: /account breakdown/i })).toHaveCount(0);
+
+    const row = page.getByRole('row').filter({ hasText: `Playwright Detailed Position ${suffix}` });
+    await expect(row).toBeVisible();
+    await expect(row).toContainText('PWT');
+    await expect(row).toContainText('7');
+    await expect(row).toContainText('€123.45');
+    await expect(row).toContainText('€864.15');
+    await expect(row).toContainText('€164.15');
+    await expect(row).toContainText(`IBKR Test ${suffix}`);
   } finally {
     await prisma.holding.deleteMany({ where: { accountId } });
     await prisma.asset.deleteMany({ where: { id: assetId } });

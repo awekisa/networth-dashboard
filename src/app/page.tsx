@@ -30,7 +30,6 @@ export default async function Home() {
   const connectedSources = accounts.length;
   const syncedAt = audits.find(a => a.action === 'SYNC_SUCCESS')?.createdAt;
   const syncLabel = connectedSources ? `${connectedSources} integrations · synced ${syncedAt ? syncedAt.toISOString().slice(11, 16) : 'locally'}` : 'Local sources · add integrations';
-  const topHoldings = aggregation.topHoldings;
   const holdingsByClass = aggregation.holdings.reduce<Record<string, NormalizedHolding[]>>((acc, holding) => {
     (acc[holding.assetClass] ??= []).push(holding);
     return acc;
@@ -67,20 +66,6 @@ export default async function Home() {
           <h2 className="eyebrow">Allocation</h2>
           <div className="allocation-wrap"><div className="donut" /> <div className="legend">{allocation.length ? allocation.map(([k,v], i) => <p key={k}><span className={`legend-dot c${i % 6}`} />{k}<strong>{aggregation.totalAssetsValue ? ((v / aggregation.totalAssetsValue) * 100).toFixed(1) : '0.0'}%</strong></p>) : <p className="muted">No assets yet</p>}</div></div>
         </article>
-      </section>
-
-      <section className="filters-panel panel" aria-label="Portfolio filters">
-        <p className="security-note">Local-first, public addresses only. Read-only integrations only: No trading, no order placement, no automation.</p>
-        <label>Account<select aria-label="Filter by account"><option>All accounts</option>{accounts.map(a => <option key={a.id}>{a.name}</option>)}</select></label>
-        <label>Asset class<select aria-label="Filter by asset class"><option>All asset classes</option>{allocation.map(([k]) => <option key={k}>{k}</option>)}</select></label>
-        <label>Currency<select aria-label="Filter by currency"><option>All currencies</option>{exposure.map(([k]) => <option key={k}>{k}</option>)}</select></label>
-        <label>Provider<select aria-label="Filter by provider"><option>All providers</option>{providers.map(p => <option key={p.id}>{p.name}</option>)}</select></label>
-      </section>
-
-      <section className="dashboard-grid secondary-grid">
-        <article className="panel card"><h2>Top holdings</h2>{topHoldings.length ? topHoldings.map(h => <div className="holding-summary" data-testid={h.assetId ? `top-holding-${h.assetId}` : undefined} key={`${h.account}-${h.name}`}><strong>{h.name}</strong><span>{h.provider} · {h.account} · {h.assetClass}</span><span>Qty: {quantity(h.quantity)} {h.symbol ?? ''}</span><span>Unit: {maybeMoney(h.unitPrice, h.currency)} · Value: {maybeMoney(h.marketValue, h.currency)}</span><span>Cost: {maybeMoney(h.costBasis, h.currency)} · <span className={positive(h.unrealizedPnl)}>P&amp;L: {maybeMoney(h.unrealizedPnl, h.currency)}</span></span></div>) : <p className="muted">No holdings yet</p>}</article>
-        <article className="panel"><h2>Currency exposure</h2>{exposure.length ? exposure.map(([k,v]) => <div className="exposure-row" key={k}><span>{k}</span><strong>{money(v)}</strong></div>) : <p className="muted">No exposure yet</p>}</article>
-        <article className="panel"><h2>Account breakdown</h2>{accounts.length ? accounts.map(a => <p className="account-line" key={a.id}>{a.name}<span>{a.type} · {a.currency} · {a.provider.name}</span></p>) : <p className="muted">Add a manual, bank, broker, Fidelity, or crypto account below.</p>}</article>
       </section>
 
       <section id="holdings" className="holdings-section">
